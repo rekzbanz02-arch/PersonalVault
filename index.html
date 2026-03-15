@@ -82,10 +82,7 @@ input,textarea,select{font-family:var(--font);font-size:.95rem}
 .header-clock{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--radius-sm);padding:.3rem .75rem;font-family:var(--mono);font-size:.78rem;color:var(--t2);flex-shrink:0}
 .clock-date{color:var(--t3);font-size:.7rem}
 .header-spacer{flex:1}
-.header-search{flex:1;max-width:360px;position:relative}
-.header-search input{width:100%;padding:.4rem .9rem .4rem 2.2rem;border:1px solid var(--bdr);border-radius:20px;background:var(--bg3);color:var(--t1);font-size:.85rem;outline:none;transition:var(--trans)}
-.header-search input:focus{border-color:var(--accent);background:var(--bg2)}
-.header-search .search-icon{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--t3);font-size:.85rem}
+
 .search-results-drop{position:absolute;top:110%;left:0;right:0;background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--radius-sm);box-shadow:var(--shadow);max-height:320px;overflow-y:auto;z-index:300;display:none}
 .search-results-drop.open{display:block}
 .search-result-item{padding:.6rem .9rem;cursor:pointer;border-bottom:1px solid var(--bdr);transition:var(--trans)}
@@ -103,7 +100,15 @@ input,textarea,select{font-family:var(--font);font-size:.95rem}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes spin-dot{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}
 
-/* ═══════════════════ SIDEBAR ═══════════════════ */
+/* ═══════════════════ SIDEBAR SEARCH ═══════════════════ */
+.sidebar-search{position:relative;margin:.6rem .5rem .4rem;flex-shrink:0}
+.sidebar-search input{width:100%;padding:.42rem .9rem .42rem 2.1rem;border:1px solid var(--bdr);border-radius:20px;background:var(--bg3);color:var(--t1);font-size:.82rem;outline:none;transition:var(--trans)}
+.sidebar-search input:focus{border-color:var(--accent);background:var(--bg2);box-shadow:0 0 0 3px var(--accentdim)}
+.sidebar-search input::placeholder{color:var(--t3)}
+.sidebar-search-icon{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--t3);font-size:.8rem;pointer-events:none}
+.sidebar-search .search-results-drop{position:absolute;top:110%;left:0;right:0;z-index:300}
+
+
 #sidebar{position:fixed;top:var(--header);left:0;bottom:0;width:var(--sidebar);background:var(--bg1);border-right:1px solid var(--bdr);overflow-y:auto;z-index:150;display:flex;flex-direction:column;padding:.6rem 0;transition:transform var(--trans)}
 .nav-section{padding:.4rem .6rem .2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);font-weight:600;margin-top:.3rem}
 .nav-item{display:flex;align-items:center;gap:.65rem;padding:.55rem .9rem;margin:.1rem .5rem;border-radius:var(--radius-sm);cursor:pointer;color:var(--t2);font-size:.88rem;font-weight:500;transition:var(--trans);position:relative;white-space:nowrap}
@@ -353,7 +358,6 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
   #sidebar.mobile-open{transform:none;box-shadow:var(--shadow)}
   #main{margin-left:0}
   #menuToggle{display:flex}
-  .header-search{display:none}
   .grid-2,.form-row,.grid-3,.grid-4{grid-template-columns:1fr}
   .form-row-3{grid-template-columns:1fr}
   .dashboard-grid{grid-template-columns:1fr 1fr}
@@ -475,20 +479,11 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
     <div class="clock-date" id="clockDate">---</div>
   </div>
   <div class="header-spacer"></div>
-  <div class="header-search">
-    <span class="search-icon">🔍</span>
-    <input type="text" id="globalSearch" placeholder="Search everything… (Ctrl+K)"
-      autocomplete="off" oninput="onGlobalSearch(this.value)"
-      aria-label="Search all records" aria-controls="searchDrop" aria-autocomplete="list" role="combobox" aria-expanded="false">
-    <div class="search-results-drop" id="searchDrop" role="listbox" aria-label="Search results"></div>
-  </div>
-  <div class="header-spacer"></div>
   <div class="sync-indicator" id="syncIndicator">
     <div class="sync-dot" id="syncDot"></div>
     <span id="syncLabel" class="hide-mobile">Offline</span>
   </div>
   <div class="header-actions">
-    <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" id="themeBtn">🌙</button>
     <button class="icon-btn" onclick="nav('notifications')" title="Notifications" id="notifBtn">🔔</button>
     <button class="icon-btn" onclick="nav('help')" title="Help">❓</button>
     <button class="icon-btn" onclick="nav('settings')" title="Settings">⚙️</button>
@@ -497,6 +492,13 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 
 <!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
 <nav id="sidebar" style="display:none" aria-label="Main navigation">
+  <div class="sidebar-search">
+    <span class="sidebar-search-icon">🔍</span>
+    <input type="text" id="globalSearch" placeholder="Search everything…"
+      autocomplete="off" oninput="onGlobalSearch(this.value)"
+      aria-label="Search all records" aria-controls="searchDrop" aria-autocomplete="list" role="combobox" aria-expanded="false">
+    <div class="search-results-drop" id="searchDrop" role="listbox" aria-label="Search results"></div>
+  </div>
   <div class="nav-section">Navigation</div>
   <div class="nav-item active" onclick="nav('dashboard')" data-page="dashboard"><span class="nav-icon">📊</span> Dashboard</div>
   <div class="nav-section">Records</div>
@@ -2850,7 +2852,8 @@ function setTheme(t) {
   document.documentElement.setAttribute('data-theme',t);
   STATE.prefs.darkMode = t==='dark';
   savePrefsToLS();
-  document.getElementById('themeBtn').textContent = t==='dark'?'🌙':'☀️';
+  const themeBtn = document.getElementById('themeBtn');
+  if (themeBtn) themeBtn.textContent = t==='dark'?'🌙':'☀️';
   const tog = document.getElementById('darkModeToggle');
   if (tog) tog.checked = t==='dark';
 }
