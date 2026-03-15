@@ -382,6 +382,17 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 /* ARIA live region for screen readers */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
+/* ═══════════════════ ALARM MODAL ═══════════════════ */
+#alarmModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s}
+#alarmModal.open{opacity:1;pointer-events:all}
+.alarm-box{background:var(--bg2);border:2px solid var(--accent);border-radius:20px;padding:2rem 1.8rem;width:360px;max-width:94vw;text-align:center;box-shadow:0 0 40px rgba(245,166,35,.35),var(--shadow);animation:alarmPulse 1s ease-in-out infinite alternate}
+@keyframes alarmPulse{from{box-shadow:0 0 20px rgba(245,166,35,.2),var(--shadow)}to{box-shadow:0 0 50px rgba(245,166,35,.55),var(--shadow)}}
+.alarm-icon{font-size:3rem;margin-bottom:.5rem;animation:alarmRing .5s ease-in-out infinite alternate}
+@keyframes alarmRing{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
+.alarm-title{font-size:1.3rem;font-weight:700;color:var(--accent);margin-bottom:.3rem}
+.alarm-label{font-size:.88rem;color:var(--t2);margin-bottom:1.5rem;line-height:1.5}
+.alarm-actions{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
+
 /* ═══════════════════ PRINT ═══════════════════ */
 @media print{
   #header,#sidebar,#toastContainer,.btn,.icon-btn,.filter-bar,.actions-td,.entry-actions{display:none!important}
@@ -818,9 +829,11 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
         <div class="settings-row-info"><div class="settings-row-title">Compact Mode</div><div class="settings-row-desc">Reduce padding and spacing</div></div>
         <label class="toggle-wrap"><input type="checkbox" id="compactModeToggle" onchange="toggleCompact(this.checked)"><span class="toggle-slider"></span></label>
       </div>
+      <div class="settings-row">
+        <div class="settings-row-info"><div class="settings-row-title">Alarm Sound</div><div class="settings-row-desc">Play audio when a schedule alarm fires</div></div>
+        <label class="toggle-wrap"><input type="checkbox" id="alarmSoundToggle" onchange="toggleAlarmSound(this.checked)"><span class="toggle-slider"></span></label>
+      </div>
     </div>
-    <div class="settings-section">
-      <div class="settings-title">🌐 Preferences</div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Default Currency</label>
           <select id="settingsCurrency" class="form-control">
@@ -937,6 +950,19 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </div>
 
 </main><!-- end #main -->
+
+<!-- ═══════════════════════ ALARM MODAL ═══════════════════════ -->
+<div id="alarmModal" role="alertdialog" aria-modal="true" aria-labelledby="alarmModalTitle">
+  <div class="alarm-box">
+    <div class="alarm-icon" id="alarmModalIcon">⏰</div>
+    <div class="alarm-title" id="alarmModalTitle">Alarm!</div>
+    <div class="alarm-label" id="alarmModalLabel"></div>
+    <div class="alarm-actions">
+      <button class="btn btn-secondary" onclick="snoozeAlarm()">💤 Snooze 5 min</button>
+      <button class="btn btn-primary" onclick="dismissAlarm()">✓ Dismiss</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════ MODALS ═══════════════════════ -->
 
@@ -1396,6 +1422,10 @@ function logout() {
   STATE.activity = [];
   STATE.alarmTimers.forEach(t => clearTimeout(t));
   STATE.alarmTimers = [];
+  stopAlarmSound();
+  if (typeof _snoozeTimer !== 'undefined' && _snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
+  if (typeof _alarmPollInterval !== 'undefined' && _alarmPollInterval) { clearInterval(_alarmPollInterval); _alarmPollInterval = null; }
+  document.getElementById('alarmModal').classList.remove('open');
   clearIdleTimer();
   sessionStorage.clear();
   document.getElementById('loginScreen').style.display = 'flex';
@@ -2167,6 +2197,7 @@ async function saveEntry() {
     closeModal('entryModal');
     renderModulePage(mod);
     renderDashboard();
+    if (mod === 'schedules') checkAlarms();
     toast(isEdit?'Entry updated ✅':'Entry added ✅', 'success');
   } catch(e) {
     toast('Save failed: '+e.message, 'error');
@@ -2514,31 +2545,210 @@ function clearNotifications() {
 }
 
 // ─── ALARMS ──────────────────────────────────────────────────────
-function checkAlarms() {
+
+// Alarm state
+let _alarmAudioCtx = null;
+let _alarmSoundInterval = null;
+let _alarmCurrentEntry = null;
+let _snoozeTimer = null;
+// ─── ALARM POLL INTERVAL (ms) ────────────────────────────────────
+// Fetches fresh schedule rows from Google Sheets every 60 seconds.
+// Lowering this value increases real-time accuracy at the cost of
+// more API calls against your Apps Script quota.
+const ALARM_POLL_MS = 60000;
+
+let _alarmPollInterval = null; // repeating GSheets poll
+let _firedAlarmIds = new Set(); // de-dupe: track IDs fired this session
+
+function getAudioCtx() {
+  if (!_alarmAudioCtx || _alarmAudioCtx.state === 'closed') {
+    _alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _alarmAudioCtx;
+}
+
+// Play a single alarm beep pattern (3 short tones)
+function playAlarmBeep() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const tones = [880, 1100, 880]; // Hz — A5, C#6, A5
+    tones.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      const start = ctx.currentTime + i * 0.22;
+      const end   = start + 0.18;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.55, start + 0.02);
+      gain.gain.linearRampToValueAtTime(0, end);
+      osc.start(start);
+      osc.stop(end + 0.02);
+    });
+  } catch(e) { /* AudioContext unavailable — silent fail */ }
+}
+
+function startAlarmSound() {
+  if (_alarmSoundInterval) return;
+  playAlarmBeep();
+  _alarmSoundInterval = setInterval(playAlarmBeep, 1800);
+}
+
+function stopAlarmSound() {
+  if (_alarmSoundInterval) { clearInterval(_alarmSoundInterval); _alarmSoundInterval = null; }
+}
+
+// ─── REAL-TIME GOOGLE SHEETS ALARM CHECKER ───────────────────────
+// Each poll: fetches the schedules sheet directly, evaluates every
+// Active row, and fires triggerAlarm() for any whose eventDate falls
+// within the current ±30-second window. setTimeout is also set for
+// alarms due within the next 7 days so they fire precisely on time.
+async function fetchAndCheckAlarms() {
+  if (!STATE.isLoggedIn) return;
+
+  // Cancel any pending per-alarm timeouts from the previous poll
   STATE.alarmTimers.forEach(t => clearTimeout(t));
   STATE.alarmTimers = [];
-  const now = Date.now();
-  (STATE.data.schedules||[]).filter(s=>s.status==='Active'&&s.eventDate).forEach(s => {
-    const d = new Date(s.eventDate).getTime();
-    const delay = d - now;
-    if (delay > 0 && delay < 86400000*7) {
-      const t = setTimeout(() => triggerAlarm(s), delay);
-      STATE.alarmTimers.push(t);
+
+  let schedules = [];
+
+  // ── Fetch from Google Sheets ──────────────────────────────────
+  if (CONFIG.scriptUrl && CONFIG.apiKey) {
+    try {
+      const rows = await apiGet(CONFIG.sheets.schedules, 'getAll');
+      if (Array.isArray(rows)) {
+        schedules = rows;
+        // Keep STATE in sync so the UI reflects latest data too
+        STATE.data.schedules = rows.sort(
+          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
+        LS.sesSet('data_schedules', STATE.data.schedules);
+      }
+    } catch (e) {
+      // Network/API error — fall back to whatever is in STATE so we
+      // don't go completely silent when offline
+      schedules = STATE.data.schedules || [];
+      console.warn('Alarm poll failed, using cached data:', e.message);
     }
+  } else {
+    // Not yet configured — use cached/local data
+    schedules = STATE.data.schedules || [];
+  }
+
+  const now = Date.now();
+  const FIRE_WINDOW_MS = 30000; // ±30 s counts as "now"
+
+  schedules
+    .filter(s => s.status === 'Active' && s.eventDate)
+    .forEach(s => {
+      const alarmTime = new Date(s.eventDate).getTime();
+      const diff = alarmTime - now;
+
+      // Fire immediately if within the ±30 s window and not already fired
+      if (Math.abs(diff) <= FIRE_WINDOW_MS) {
+        if (!_firedAlarmIds.has(s.id)) {
+          _firedAlarmIds.add(s.id);
+          triggerAlarm(s);
+        }
+        return;
+      }
+
+      // Schedule a precise setTimeout for alarms due within 7 days
+      if (diff > FIRE_WINDOW_MS && diff < 86400000 * 7) {
+        const t = setTimeout(() => {
+          if (!_firedAlarmIds.has(s.id)) {
+            _firedAlarmIds.add(s.id);
+            triggerAlarm(s);
+          }
+        }, diff);
+        STATE.alarmTimers.push(t);
+      }
+    });
+
+  // Prune fired IDs older than 1 hour to keep the Set small
+  // (we store IDs with their fire timestamp for this purpose)
+  const cutoff = now - 3600000;
+  _firedAlarmIds.forEach(entry => {
+    if (typeof entry === 'string') return; // legacy plain IDs — keep
+    if (entry.t < cutoff) _firedAlarmIds.delete(entry);
   });
 }
 
+// Start (or restart) the real-time polling loop
+function checkAlarms() {
+  // Stop any existing poll loop
+  if (_alarmPollInterval) { clearInterval(_alarmPollInterval); _alarmPollInterval = null; }
+  STATE.alarmTimers.forEach(t => clearTimeout(t));
+  STATE.alarmTimers = [];
+  _firedAlarmIds.clear();
+
+  // Run once immediately, then repeat on schedule
+  fetchAndCheckAlarms();
+  _alarmPollInterval = setInterval(fetchAndCheckAlarms, ALARM_POLL_MS);
+}
+
 function triggerAlarm(entry) {
-  toast('⏰ ALARM: ' + entry.title, 'warning');
+  _alarmCurrentEntry = entry;
+  const alarmType = (entry.alarmType || 'Both').toLowerCase(); // visual | audio | both
+
+  // — Browser Notification —
   if (STATE.prefs.notifications && 'Notification' in window) {
+    const fireNotif = () => new Notification('⏰ PersonaVault Alarm', {
+      body: entry.title + (entry.notes ? '\n' + entry.notes : ''),
+      icon: ''
+    });
     if (Notification.permission === 'granted') {
-      new Notification('PersonaVault Alarm', { body: entry.title, icon: '' });
+      fireNotif();
     } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') new Notification('PersonaVault Alarm', { body: entry.title });
-      });
+      Notification.requestPermission().then(p => { if (p === 'granted') fireNotif(); });
     }
   }
+
+  // — Sound —
+  const soundEnabled = STATE.prefs.alarmSound !== false; // default on
+  if (soundEnabled && (alarmType === 'audio' || alarmType === 'both')) {
+    startAlarmSound();
+  }
+
+  // — Visual alarm modal —
+  if (alarmType === 'visual' || alarmType === 'both' || alarmType === 'audio') {
+    document.getElementById('alarmModalTitle').textContent = entry.title;
+    document.getElementById('alarmModalLabel').textContent =
+      (entry.notes ? entry.notes + '\n' : '') +
+      'Scheduled: ' + (entry.eventDate ? new Date(entry.eventDate).toLocaleString() : '');
+    document.getElementById('alarmModal').classList.add('open');
+    document.getElementById('srAnnounce').textContent = 'Alarm: ' + entry.title;
+  }
+
+  // Always show toast for quick visibility
+  toast('⏰ ALARM: ' + (entry.title || 'Scheduled alarm'), 'warning');
+}
+
+function dismissAlarm() {
+  stopAlarmSound();
+  document.getElementById('alarmModal').classList.remove('open');
+  _alarmCurrentEntry = null;
+  if (_snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
+}
+
+function snoozeAlarm() {
+  stopAlarmSound();
+  document.getElementById('alarmModal').classList.remove('open');
+  const entry = _alarmCurrentEntry;
+  toast('💤 Alarm snoozed for 5 minutes', 'info');
+  if (_snoozeTimer) clearTimeout(_snoozeTimer);
+  _snoozeTimer = setTimeout(() => {
+    if (STATE.isLoggedIn && entry) triggerAlarm(entry);
+  }, 5 * 60 * 1000);
+}
+
+function toggleAlarmSound(on) {
+  STATE.prefs.alarmSound = on;
+  savePrefsToLS();
+  toast('Alarm sound ' + (on ? 'enabled 🔔' : 'disabled 🔕'), 'info');
 }
 
 // ─── STATISTICS ──────────────────────────────────────────────────
@@ -2760,6 +2970,7 @@ function loadSettingsUI() {
   document.getElementById('settingsTimeout').value = STATE.prefs.idleTimeout;
   document.getElementById('darkModeToggle').checked = document.documentElement.getAttribute('data-theme')==='dark';
   document.getElementById('compactModeToggle').checked = STATE.prefs.compact;
+  document.getElementById('alarmSoundToggle').checked = STATE.prefs.alarmSound !== false;
   document.getElementById('lastSyncDisplay').textContent = STATE.lastSync ? timeAgo(STATE.lastSync) : 'Never';
   const total = Object.values(STATE.data).reduce((s,a)=>s+(a?.length||0),0);
   document.getElementById('totalRecordsDisplay').textContent = total;
