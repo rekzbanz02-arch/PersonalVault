@@ -857,7 +857,7 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
     <div class="settings-section">
       <div class="settings-title">ℹ️ About</div>
       <div class="card-sm">
-        <div class="flex justify-between" style="margin-bottom:.5rem"><span class="text-t3 text-sm">Version</span><span class="font-semibold">1.0.0</span></div>
+        <div class="flex justify-between" style="margin-bottom:.5rem"><span class="text-t3 text-sm">Version</span><span class="font-semibold">6.0.0</span></div>
         <div class="flex justify-between" style="margin-bottom:.5rem"><span class="text-t3 text-sm">Last Sync</span><span id="lastSyncDisplay" class="font-semibold text-sm">Never</span></div>
         <div class="flex justify-between"><span class="text-t3 text-sm">Total Records</span><span id="totalRecordsDisplay" class="font-semibold">0</span></div>
       </div>
@@ -1055,14 +1055,14 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    PERSONAVAULT — COMPLETE VANILLA JS APPLICATION
-   v2.0.0 | Single-file HTML | Google Sheets backend via Apps Script
+   v6.0.0 | Single-file HTML | Google Sheets backend via Apps Script
 ═══════════════════════════════════════════════════════════════════ */
 
 // ─── CONFIGURATION ────────────────────────────────────────────────
 const CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbyBHpHuHatTzFT2hbKIhlcb7u9BrqVSQikRpxSsMZfVASUmqZNMYyiCj0WAHYZDhvsvVw/exec',   // Apps Script Web App URL — set in settings/setup
-  apiKey:    'gsa_2Fh83KpL92Qx7Vd4Rt1B9Zm6Tn5Rex',   // API Key — set in settings/setup
-  version:   '2.0.0',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbyBHpHuHatTzFT2hbKIhlcb7u9BrqVSQikRpxSsMZfVASUmqZNMYyiCj0WAHYZDhvsvVw/exec',   // Set via first-run setup or Settings page
+  apiKey:    'gsa_2Fh83KpL92Qx7Vd4Rt1B9Zm6Tn5Rex',   // Set via first-run setup or Settings page
+  version:   '6.0.0',
   sheets: {        // Google Sheet tab names per module
     personal:  'personal_details',
     education: 'education_records',
@@ -1171,21 +1171,16 @@ document.addEventListener('DOMContentLoaded', () => {
     hashPasscode('1234').then(h => {
       if (!LS.get('passcode')) LS.set('passcode', h); // double-check in case of race
     });
-    if (!LS.get('scriptUrl') && CONFIG.scriptUrl) LS.set('scriptUrl', CONFIG.scriptUrl);
-    if (!LS.get('apiKey')    && CONFIG.apiKey)    LS.set('apiKey',    CONFIG.apiKey);
     document.getElementById('loginSub').textContent = 'First time? Confirm your setup below.';
     document.getElementById('loginHint').innerHTML =
       'Or skip setup and log in with default passcode <strong>1234</strong>';
     document.getElementById('setupPanel').style.display = 'block';
-    // Pre-fill the setup form so the user only needs to set a name / custom passcode
-    document.getElementById('setupScriptUrl').value = CONFIG.scriptUrl || '';
-    document.getElementById('setupApiKey').value    = CONFIG.apiKey    || '';
   }
   startClock();
   initOnlineMonitor();
   document.getElementById('globalSearch').addEventListener('keydown', e => {
-    if (e.key==='Escape') closeDrop();
-    if (e.key==='Enter') closeDrop();
+    if (e.key==='Escape') clearAndCloseDrop();
+    if (e.key==='Enter') clearAndCloseDrop();
   });
   document.addEventListener('keydown', handleKeyboard);
   document.addEventListener('click', e => {
@@ -1485,7 +1480,7 @@ function nav(page) {
   if (page === 'dashboard') renderDashboard();
   else if (page === 'stats') renderStats();
   else if (page === 'activity') renderActivityLog();
-  else if (page === 'notifications') renderNotifications();
+  else if (page === 'notifications') { renderNotifications(); updateNotifBadge(); }
   else if (page === 'settings') loadSettingsUI();
   else if (MODULES[page]) { STATE.currentModule = page; renderModulePage(page); }
   // Close mobile sidebar
@@ -2116,7 +2111,9 @@ function togglePwVis() {
 
 function genPassword() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  const pw = Array.from({length:16},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  const arr = new Uint8Array(16);
+  window.crypto.getRandomValues(arr);
+  const pw = Array.from(arr, b => chars[b % chars.length]).join('');
   const inp = document.getElementById('pwInput');
   if (inp) { inp.type='text'; inp.value=pw; }
 }
@@ -2328,36 +2325,47 @@ function copyRevealedPassword(id) {
     .catch(() => toast('Copy failed — please copy manually', 'error'));
 }
 
-// FIX: Revealed passwords are shown in a secure modal, not a toast notification.
-// Toasts are visible to nearby observers and often persist in logs.
 function showPasswordRevealResult(pw) {
   const entry = (STATE.data.passwords||[]).find(e=>e.id===STATE.currentRevealId);
   const name  = entry ? escHtml(entry.siteName||'Password') : 'Password';
   const modal = document.createElement('div');
   modal.className = 'modal-backdrop open';
   modal.style.zIndex = '600';
+  // Build modal without embedding pw in inline handlers
   modal.innerHTML = `
     <div class="modal modal-sm">
       <div class="modal-header">
         <div class="modal-title">🔓 Revealed: ${name}</div>
-        <button class="close-btn" onclick="this.closest('.modal-backdrop').remove()">✕</button>
+        <button class="close-btn" id="_revealClose">✕</button>
       </div>
       <div class="modal-body" style="text-align:center">
-        <div style="font-family:var(--mono);font-size:1.1rem;font-weight:600;color:var(--accent);
+        <div id="_revealPwText" style="font-family:var(--mono);font-size:1.1rem;font-weight:600;color:var(--accent);
              background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--radius-sm);
              padding:1rem;letter-spacing:.05em;word-break:break-all;margin-bottom:1rem">
-          ${escHtml(pw)}
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${pw.replace(/'/g,"\\'")}').then(()=>toast('Copied!','success'))">📋 Copy to Clipboard</button>
+        <button class="btn btn-secondary btn-sm" id="_revealCopyBtn">📋 Copy to Clipboard</button>
         <p style="font-size:.75rem;color:var(--t3);margin-top:1rem">This dialog will close automatically in 30 seconds.</p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" onclick="this.closest('.modal-backdrop').remove()">Done</button>
+        <button class="btn btn-primary" id="_revealDoneBtn">Done</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
+  // Set password text safely via textContent — never innerHTML
+  document.getElementById('_revealPwText').textContent = pw;
+  const dismiss = () => modal.remove();
+  document.getElementById('_revealClose').onclick = dismiss;
+  document.getElementById('_revealDoneBtn').onclick = dismiss;
+  document.getElementById('_revealCopyBtn').onclick = () => {
+    navigator.clipboard.writeText(pw)
+      .then(() => toast('Copied! 📋','success'))
+      .catch(() => toast('Copy failed — copy manually','error'));
+  };
+  // Close on backdrop click
+  modal.addEventListener('click', e => { if (e.target === modal) dismiss(); });
   // Auto-close after 30s for security
-  setTimeout(() => modal.remove(), 30000);
+  const autoClose = setTimeout(dismiss, 30000);
+  modal.addEventListener('remove', () => clearTimeout(autoClose), { once: true });
 }
 
 // ─── ACTIVITY LOG ─────────────────────────────────────────────────
@@ -2438,19 +2446,29 @@ function updateNotifBadge() {
 function getNotifications() {
   const notifs = [];
   const now = new Date();
+  // FIX: check dismissed timestamp — if notifications were cleared after an item's
+  // date, that item is considered read until new data is fetched after the dismiss.
+  const dismissedAt = LS.get('dismissedNotifs') || 0;
   // Upcoming events (next 7 days)
   (STATE.data.events||[]).forEach(e => {
     if (!e.eventDate) return;
     const d = new Date(e.eventDate);
     const diff = Math.ceil((d-now)/86400000);
-    if (diff >= 0 && diff <= 7) notifs.push({type:'event',title:e.eventName,date:e.eventDate,diff,icon:'📅'});
+    if (diff >= 0 && diff <= 7) {
+      // Only include if this item was created/updated AFTER the last dismissal
+      const itemTs = new Date(e.updatedAt||e.createdAt||0).getTime();
+      if (itemTs > dismissedAt) notifs.push({type:'event',title:e.eventName,date:e.eventDate,diff,icon:'📅'});
+    }
   });
   // Schedules active
   (STATE.data.schedules||[]).filter(s=>s.status==='Active').forEach(s => {
     if (!s.eventDate) return;
     const d = new Date(s.eventDate);
     const diff = Math.ceil((d-now)/86400000);
-    if (diff >= 0 && diff <= 3) notifs.push({type:'alarm',title:s.title,date:s.eventDate,diff,icon:'⏰'});
+    if (diff >= 0 && diff <= 3) {
+      const itemTs = new Date(s.updatedAt||s.createdAt||0).getTime();
+      if (itemTs > dismissedAt) notifs.push({type:'alarm',title:s.title,date:s.eventDate,diff,icon:'⏰'});
+    }
   });
   // Birthdays (next 30 days)
   (STATE.data.personal||[]).forEach(p => {
@@ -2459,7 +2477,10 @@ function getNotifications() {
     const next = new Date(now.getFullYear(), bd.getMonth(), bd.getDate());
     if (next < now) next.setFullYear(now.getFullYear()+1);
     const diff = Math.ceil((next-now)/86400000);
-    if (diff >= 0 && diff <= 30) notifs.push({type:'birthday',title:p.fullName+"'s Birthday",date:next.toISOString(),diff,icon:'🎂'});
+    if (diff >= 0 && diff <= 30) {
+      const itemTs = new Date(p.updatedAt||p.createdAt||0).getTime();
+      if (itemTs > dismissedAt) notifs.push({type:'birthday',title:(p.fullName||'Someone')+"'s Birthday",date:next.toISOString(),diff,icon:'🎂'});
+    }
   });
   return notifs.sort((a,b)=>a.diff-b.diff);
 }
@@ -2481,11 +2502,13 @@ function renderNotifications() {
 }
 
 function clearNotifications() {
-  // FIX: Dismissed state stored so notifications don't reappear after re-render
+  // Store dismiss time so getNotifications() can filter out already-seen items
   LS.set('dismissedNotifs', Date.now());
   const el = document.getElementById('notifList');
-  if (el) el.innerHTML = '<div class="empty-state"><div class="empty-icon">🔕</div><div class="empty-text">All clear</div></div>';
+  if (el) el.innerHTML = '<div class="empty-state"><div class="empty-icon">🔕</div><div class="empty-text">All notifications cleared</div></div>';
+  // Update badge — now getNotifications() will return [] because dismissedAt > all itemTs
   updateNotifBadge();
+  toast('Notifications cleared', 'info');
 }
 
 // ─── ALARMS ──────────────────────────────────────────────────────
@@ -2595,7 +2618,7 @@ function doExport(format) {
 }
 function exportJSON(mod) {
   const data = mod==='__all__' ? { ...STATE.data, groups: STATE.groups } : { [mod]: STATE.data[mod]||[] };
-  // Strip passwords
+  // Strip passwords and security answers from every path
   if (data.passwords) data.passwords = data.passwords.map(p=>({...p,password:'[HIDDEN]',securityA:'[HIDDEN]'}));
   const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   dlBlob(blob,`PersonaVault_${mod}_${ts()}.json`);
@@ -2694,7 +2717,7 @@ function runGlobalSearch(q) {
     drop.classList.add('open'); srch.setAttribute('aria-expanded','true'); return;
   }
   drop.innerHTML = results.slice(0,8).map(({mod,e}) =>
-    `<div class="search-result-item" role="option" onclick="nav('${mod}');closeDrop()">
+    `<div class="search-result-item" role="option" onclick="nav('${mod}');clearAndCloseDrop()">
       <div class="sr-module">${MODULES[mod]?.icon} ${MODULES[mod]?.label}</div>
       <div class="sr-title">${highlight(escHtml(getEntryTitle(mod,e)),q)}</div>
     </div>`).join('');
@@ -2703,7 +2726,13 @@ function runGlobalSearch(q) {
 }
 function closeDrop() {
   document.getElementById('searchDrop').classList.remove('open');
-  document.getElementById('globalSearch').setAttribute('aria-expanded','false');
+  const srch = document.getElementById('globalSearch');
+  srch.setAttribute('aria-expanded','false');
+}
+function clearAndCloseDrop() {
+  const srch = document.getElementById('globalSearch');
+  srch.value = '';
+  closeDrop();
 }
 function highlight(text, q) {
   // FIX: escape the query for use in regex safely; text is already HTML-escaped
@@ -2906,12 +2935,15 @@ function timeAgo(d) {
 }
 function calcAge(bd) {
   if (!bd) return '';
-  const b = new Date(bd);
-  if (isNaN(b.getTime())) return ''; // FIX: guard invalid date string
+  // Parse as local date (YYYY-MM-DD) to avoid UTC midnight shifting day across timezones
+  const parts = String(bd).split('-');
+  if (parts.length < 3) return '';
+  const b = new Date(+parts[0], +parts[1]-1, +parts[2]);
+  if (isNaN(b.getTime())) return ''; // guard invalid date string
   const n = new Date();
   let age = n.getFullYear()-b.getFullYear();
   if (n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) age--;
-  return age < 0 ? '' : age; // FIX: don't show negative age for future dates
+  return age < 0 ? '' : age; // don't show negative age for future dates
 }
 function calcTenure(start, end) {
   if (!start) return '';
