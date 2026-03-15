@@ -246,6 +246,14 @@ tr:hover td{background:var(--bg3);color:var(--t1)}
 .empty-text{font-size:.9rem}
 .empty-sub{font-size:.78rem;color:var(--t3);margin-top:.3rem}
 
+/* ─── Inline password reveal row ─── */
+.pw-card-row{display:flex;align-items:center;gap:.5rem;margin-top:.45rem;flex-wrap:wrap}
+.pw-mask{font-family:var(--mono);font-size:.82rem;color:var(--t3);letter-spacing:.12em;user-select:none}
+.pw-plain{font-family:var(--mono);font-size:.82rem;color:var(--accent);letter-spacing:.04em;word-break:break-all;background:var(--accentdim);padding:.1rem .45rem;border-radius:4px;border:1px solid rgba(245,166,35,.25)}
+.pw-reveal-btn{font-size:.72rem!important;padding:.18rem .5rem!important;color:var(--t3)!important;border-color:transparent!important}
+.pw-reveal-btn:hover{color:var(--accent)!important;border-color:var(--accent)!important;background:var(--accentdim)!important}
+.pw-copy-btn{font-size:.72rem!important;padding:.18rem .45rem!important}
+
 /* ═══════════════════ DASHBOARD ═══════════════════ */
 .dashboard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
 .dash-section{margin-bottom:1.8rem}
@@ -1878,11 +1886,29 @@ function renderEntryCard(mod, entry) {
   const title = getEntryTitle(mod, entry);
   const meta  = getEntryMeta(mod, entry);
   const badges = getEntryBadges(mod, entry);
+
+  // Password vault: show masked password row with reveal button
+  const pwRow = mod === 'passwords' ? `
+    <div class="pw-card-row">
+      <span class="pw-mask" id="pw-mask-${escAttr(entry.id)}">••••••••••••</span>
+      <span class="pw-plain" id="pw-plain-${escAttr(entry.id)}" style="display:none"></span>
+      <button class="btn btn-ghost btn-xs pw-reveal-btn" id="pw-btn-${escAttr(entry.id)}"
+        onclick="revealPasswordInline('${escAttr(entry.id)}')" title="Show password">
+        👁 Show
+      </button>
+      <button class="btn btn-ghost btn-xs pw-copy-btn" id="pw-copy-${escAttr(entry.id)}"
+        style="display:none"
+        onclick="copyRevealedPassword('${escAttr(entry.id)}')" title="Copy password">
+        📋
+      </button>
+    </div>` : '';
+
   return `<div class="entry-card ${entry.pinned==='true'?'entry-pinned':''}">
     <div class="entry-icon" style="background:${MODULES[mod].color}22;color:${MODULES[mod].color}">${MODULES[mod].icon}</div>
     <div class="entry-content">
       <div class="entry-title">${escHtml(title)}</div>
       <div class="entry-meta">${escHtml(meta)}</div>
+      ${pwRow}
       ${badges ? `<div class="tags-wrap" style="margin-top:.3rem">${badges}</div>` : ''}
     </div>
     <div class="entry-actions">
@@ -2227,6 +2253,16 @@ function revealPassword(id) {
   document.getElementById('revealError').textContent = '';
   openModal('revealModal');
 }
+
+// Inline reveal — opens the passcode modal, then on success shows the
+// password directly inside the entry card instead of a separate result modal.
+function revealPasswordInline(id) {
+  STATE.currentRevealId = id;
+  STATE._revealMode = 'inline';   // flag so confirmReveal knows where to display
+  document.getElementById('revealPasscode').value = '';
+  document.getElementById('revealError').textContent = '';
+  openModal('revealModal');
+}
 async function confirmReveal() {
   const pc = document.getElementById('revealPasscode').value;
   const stored = LS.get('passcode');
@@ -2238,11 +2274,58 @@ async function confirmReveal() {
   const entry = (STATE.data.passwords||[]).find(e=>e.id===STATE.currentRevealId);
   if (!entry) return;
   closeModal('revealModal');
-  try {
-    const decoded = decodeURIComponent(escape(atob(entry.password)));
+
+  let decoded;
+  try { decoded = decodeURIComponent(escape(atob(entry.password))); }
+  catch { decoded = entry.password; }
+
+  if (STATE._revealMode === 'inline') {
+    STATE._revealMode = null;
+    // Show password inline inside the entry card
+    const id = STATE.currentRevealId;
+    const maskEl  = document.getElementById('pw-mask-' + id);
+    const plainEl = document.getElementById('pw-plain-' + id);
+    const btnEl   = document.getElementById('pw-btn-'  + id);
+    const copyEl  = document.getElementById('pw-copy-' + id);
+    if (maskEl && plainEl && btnEl) {
+      plainEl.textContent = decoded;
+      maskEl.style.display  = 'none';
+      plainEl.style.display = 'inline';
+      copyEl.style.display  = 'inline-flex';
+      btnEl.textContent = '🙈 Hide';
+      btnEl.onclick = () => hidePasswordInline(id);
+      // Auto-hide after 30 s
+      if (STATE._revealTimers) clearTimeout(STATE._revealTimers[id]);
+      if (!STATE._revealTimers) STATE._revealTimers = {};
+      STATE._revealTimers[id] = setTimeout(() => hidePasswordInline(id), 30000);
+    }
+  } else {
     // FIX: Show in a modal instead of a toast (sensitive data in toast is a security risk)
     showPasswordRevealResult(decoded);
-  } catch { showPasswordRevealResult(entry.password); }
+  }
+}
+
+function hidePasswordInline(id) {
+  const maskEl  = document.getElementById('pw-mask-' + id);
+  const plainEl = document.getElementById('pw-plain-' + id);
+  const btnEl   = document.getElementById('pw-btn-'  + id);
+  const copyEl  = document.getElementById('pw-copy-' + id);
+  if (!maskEl) return;
+  maskEl.style.display  = '';
+  plainEl.style.display = 'none';
+  copyEl.style.display  = 'none';
+  plainEl.textContent   = '';
+  btnEl.textContent     = '👁 Show';
+  btnEl.onclick = () => revealPasswordInline(id);
+  if (STATE._revealTimers?.[id]) { clearTimeout(STATE._revealTimers[id]); delete STATE._revealTimers[id]; }
+}
+
+function copyRevealedPassword(id) {
+  const plainEl = document.getElementById('pw-plain-' + id);
+  if (!plainEl || !plainEl.textContent) return;
+  navigator.clipboard.writeText(plainEl.textContent)
+    .then(() => toast('Password copied! 📋', 'success'))
+    .catch(() => toast('Copy failed — please copy manually', 'error'));
 }
 
 // FIX: Revealed passwords are shown in a secure modal, not a toast notification.
