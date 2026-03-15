@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PersonaVault — Personal Records Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════ BASE VARIABLES ═══════════════════ */
@@ -169,7 +170,8 @@ select.form-control option{background:var(--bg2);color:var(--t1)}
 .required{color:var(--red);margin-left:2px}
 
 /* ═══════════════════ MODALS ═══════════════════ */
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s}
+/* FIX: modal backdrop click passthrough cursor */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;cursor:default}
 .modal-backdrop.open{opacity:1;pointer-events:all}
 .modal{background:var(--bg2);border:1px solid var(--bdr2);border-radius:16px;width:600px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;transform:scale(.97) translateY(8px);transition:transform .2s;box-shadow:var(--shadow)}
 .modal-backdrop.open .modal{transform:none}
@@ -248,6 +250,9 @@ tr:hover td{background:var(--bg3);color:var(--t1)}
 .dashboard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
 .dash-section{margin-bottom:1.8rem}
 .dash-section-title{font-size:.85rem;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.8rem;display:flex;align-items:center;gap:.4rem}
+/* FIX: dash-lower was inline style with no mobile breakpoint */
+.dash-lower{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+@media(max-width:768px){.dash-lower{grid-template-columns:1fr}}
 .activity-item{display:flex;align-items:center;gap:.7rem;padding:.55rem .7rem;border-radius:var(--radius-xs);transition:var(--trans)}
 .activity-item:hover{background:var(--bg3)}
 .activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -353,6 +358,18 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
   .modal{border-radius:12px}
 }
 
+/* ═══════════════════ FOCUS / A11Y ═══════════════════ */
+/* Visible keyboard focus rings — replaces browser default outlines */
+.btn:focus-visible,.icon-btn:focus-visible,.numpad-btn:focus-visible,.nav-item:focus-visible,
+.close-btn:focus-visible,.input-group-btn:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+.form-control:focus-visible,select.form-control:focus-visible{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accentdim);
+}
+/* ARIA live region for screen readers */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
 /* ═══════════════════ PRINT ═══════════════════ */
 @media print{
   #header,#sidebar,#toastContainer,.btn,.icon-btn,.filter-bar,.actions-td,.entry-actions{display:none!important}
@@ -388,16 +405,20 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </head>
 <body>
 
+<!-- SR Live Region -->
+<div id="srAnnounce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
 <!-- ═══════════════════════ LOGIN ═══════════════════════ -->
-<div id="loginScreen">
+<div id="loginScreen" role="main" aria-label="Login">
   <div class="login-box">
     <div class="login-logo">🔐</div>
     <div class="login-title">PersonaVault</div>
     <div class="login-sub" id="loginSub">Personal Records Hub — Enter your passcode</div>
-    <div id="pinDots" class="pin-display"></div>
-    <input type="password" id="pinInput" class="pin-input" placeholder="••••" maxlength="12" autocomplete="off" inputmode="numeric">
-    <div class="numpad" id="numpad"></div>
-    <div class="login-error" id="loginError"></div>
+    <div id="pinDots" class="pin-display" aria-hidden="true"></div>
+    <input type="password" id="pinInput" class="pin-input" placeholder="••••" maxlength="12"
+      autocomplete="off" inputmode="numeric" aria-label="Enter passcode" aria-describedby="loginError">
+    <div class="numpad" id="numpad" role="group" aria-label="Number pad"></div>
+    <div class="login-error" id="loginError" role="alert" aria-live="assertive"></div>
     <div class="login-hint" id="loginHint">Default passcode: <strong>1234</strong></div>
   </div>
   <!-- Setup Panel (first run) -->
@@ -435,8 +456,8 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </div>
 
 <!-- ═══════════════════════ HEADER ═══════════════════════ -->
-<header id="header" style="display:none">
-  <button id="menuToggle" onclick="toggleSidebar()">☰</button>
+<header id="header" style="display:none" role="banner">
+  <button id="menuToggle" onclick="toggleSidebar()" aria-label="Toggle navigation menu" aria-expanded="false">☰</button>
   <div class="header-brand">
     <div class="brand-icon">🔐</div>
     <span>PersonaVault</span>
@@ -448,8 +469,10 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
   <div class="header-spacer"></div>
   <div class="header-search">
     <span class="search-icon">🔍</span>
-    <input type="text" id="globalSearch" placeholder="Search everything… (Ctrl+K)" autocomplete="off" oninput="onGlobalSearch(this.value)">
-    <div class="search-results-drop" id="searchDrop"></div>
+    <input type="text" id="globalSearch" placeholder="Search everything… (Ctrl+K)"
+      autocomplete="off" oninput="onGlobalSearch(this.value)"
+      aria-label="Search all records" aria-controls="searchDrop" aria-autocomplete="list" role="combobox" aria-expanded="false">
+    <div class="search-results-drop" id="searchDrop" role="listbox" aria-label="Search results"></div>
   </div>
   <div class="header-spacer"></div>
   <div class="sync-indicator" id="syncIndicator">
@@ -466,7 +489,7 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </header>
 
 <!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
-<nav id="sidebar" style="display:none">
+<nav id="sidebar" style="display:none" aria-label="Main navigation">
   <div class="nav-section">Navigation</div>
   <div class="nav-item active" onclick="nav('dashboard')" data-page="dashboard"><span class="nav-icon">📊</span> Dashboard</div>
   <div class="nav-section">Records</div>
@@ -490,7 +513,7 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </nav>
 
 <!-- ═══════════════════════ MAIN CONTENT ═══════════════════════ -->
-<main id="main" style="display:none">
+<main id="main" style="display:none" role="main">
 
 <!-- ─────────── DASHBOARD ─────────── -->
 <div id="page-dashboard" class="page active">
@@ -503,7 +526,7 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
     </div>
   </div>
   <div class="dashboard-grid" id="dashStats"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem" class="dash-lower">
+  <div class="dash-lower" id="dashLower">
     <div>
       <div class="dash-section-title">⚡ Recent Activity</div>
       <div class="card" id="recentActivity"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No activity yet</div></div></div>
@@ -765,7 +788,7 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
       <div class="form-group"><label class="form-label">API Key</label>
         <input type="text" id="settingsApiKey" class="form-control" placeholder="Your API key">
       </div>
-      <button class="btn btn-secondary btn-sm" onclick="testConnection()">🔍 Test Connection</button>
+      <button class="btn btn-secondary btn-sm" onclick="testConnection(this)">🔍 Test Connection</button>
       <button class="btn btn-primary btn-sm" onclick="saveConnectionSettings()" style="margin-left:.5rem">Save</button>
     </div>
     <div class="settings-section">
@@ -842,12 +865,12 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
   </div>
   <div class="card" style="display:flex;gap:1.5rem;min-height:400px">
     <div class="help-nav" id="helpNav">
-      <div class="help-nav-item active" onclick="showHelp('overview')">Overview</div>
-      <div class="help-nav-item" onclick="showHelp('modules')">Modules Guide</div>
-      <div class="help-nav-item" onclick="showHelp('sync')">Sync & Storage</div>
-      <div class="help-nav-item" onclick="showHelp('security')">Security</div>
-      <div class="help-nav-item" onclick="showHelp('shortcuts')">Keyboard Shortcuts</div>
-      <div class="help-nav-item" onclick="showHelp('faq')">FAQ</div>
+      <div class="help-nav-item active" onclick="showHelp('overview',this)">Overview</div>
+      <div class="help-nav-item" onclick="showHelp('modules',this)">Modules Guide</div>
+      <div class="help-nav-item" onclick="showHelp('sync',this)">Sync & Storage</div>
+      <div class="help-nav-item" onclick="showHelp('security',this)">Security</div>
+      <div class="help-nav-item" onclick="showHelp('shortcuts',this)">Keyboard Shortcuts</div>
+      <div class="help-nav-item" onclick="showHelp('faq',this)">FAQ</div>
     </div>
     <div class="help-content">
       <div id="help-overview" class="help-section active">
@@ -1024,14 +1047,14 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    PERSONAVAULT — COMPLETE VANILLA JS APPLICATION
-   v1.0.0 | Single-file HTML | Google Sheets backend via Apps Script
+   v2.0.0 | Single-file HTML | Google Sheets backend via Apps Script
 ═══════════════════════════════════════════════════════════════════ */
 
 // ─── CONFIGURATION ────────────────────────────────────────────────
 const CONFIG = {
   scriptUrl: 'https://script.google.com/macros/s/AKfycbyBHpHuHatTzFT2hbKIhlcb7u9BrqVSQikRpxSsMZfVASUmqZNMYyiCj0WAHYZDhvsvVw/exec',   // Apps Script Web App URL — set in settings/setup
   apiKey:    'gsa_2Fh83KpL92Qx7Vd4Rt1B9Zm6Tn5Rex',   // API Key — set in settings/setup
-  version:   '1.0.0',
+  version:   '2.0.0',
   sheets: {        // Google Sheet tab names per module
     personal:  'personal_details',
     education: 'education_records',
@@ -1099,12 +1122,31 @@ const LS = {
   sesSet: (k,v) => sessionStorage.setItem('pv_'+k, JSON.stringify(v))
 };
 
-// ─── SIMPLE HASH (passcode storage) ──────────────────────────────
-function simpleHash(str) {
+// ─── PASSCODE HASHING ────────────────────────────────────────────
+// Uses SHA-256 via SubtleCrypto for a much stronger hash than the old
+// djb2 approach. Falls back to the legacy djb2 if SubtleCrypto is
+// unavailable (e.g. non-HTTPS environments) so the app still works.
+// Legacy hashes starting with 'pvh_' are detected and migrated on
+// the next successful login.
+
+async function hashPasscode(str) {
+  if (window.crypto && window.crypto.subtle) {
+    const enc  = new TextEncoder();
+    const buf  = await window.crypto.subtle.digest('SHA-256', enc.encode('pv_salt_' + str));
+    const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    return 'pvs_' + hex;  // 'pvs_' prefix = SubtleCrypto hash
+  }
+  return legacyHash(str);
+}
+
+function legacyHash(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
   return 'pvh_' + Math.abs(h).toString(36);
 }
+
+// Synchronous wrapper used only during legacy comparison/migration
+function simpleHash(str) { return legacyHash(str); }
 
 // ─── INIT ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -1117,7 +1159,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // survive every subsequent loadPrefs() call, then show the setup
   // panel pre-filled so the user just confirms and picks a name.
   if (!LS.get('passcode')) {
-    LS.set('passcode', simpleHash('1234'));
+    // FIX: use stronger SHA-256 hash for the bootstrapped default passcode
+    hashPasscode('1234').then(h => {
+      if (!LS.get('passcode')) LS.set('passcode', h); // double-check in case of race
+    });
     if (!LS.get('scriptUrl') && CONFIG.scriptUrl) LS.set('scriptUrl', CONFIG.scriptUrl);
     if (!LS.get('apiKey')    && CONFIG.apiKey)    LS.set('apiKey',    CONFIG.apiKey);
     document.getElementById('loginSub').textContent = 'First time? Confirm your setup below.';
@@ -1194,7 +1239,7 @@ let lockUntil = 0;
 document.getElementById('pinInput').addEventListener('input', e => renderPinDots(e.target.value));
 document.getElementById('pinInput').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
 
-function doLogin() {
+async function doLogin() {
   const now = Date.now();
   if (lockUntil > now) {
     const secs = Math.ceil((lockUntil-now)/1000);
@@ -1206,7 +1251,23 @@ function doLogin() {
   if (!val) { showLoginError('Enter your passcode'); return; }
   const stored = LS.get('passcode');
   if (!stored) { showLoginError('No passcode set. Complete setup first.'); return; }
-  if (simpleHash(val) === stored) {
+
+  // Compare: support both legacy 'pvh_' hashes and new 'pvs_' SHA-256 hashes
+  let match = false;
+  if (stored.startsWith('pvs_')) {
+    // New SHA-256 path
+    match = (await hashPasscode(val)) === stored;
+  } else {
+    // Legacy djb2 path — migrate to SHA-256 on success
+    match = legacyHash(val) === stored;
+    if (match) {
+      // Silently upgrade stored hash to SHA-256
+      const upgraded = await hashPasscode(val);
+      LS.set('passcode', upgraded);
+    }
+  }
+
+  if (match) {
     loginAttempts = 0;
     inp.value = '';
     renderPinDots('');
@@ -1226,7 +1287,7 @@ function doLogin() {
 }
 function showLoginError(msg) { document.getElementById('loginError').textContent = msg; }
 
-function completeSetup() {
+async function completeSetup() {
   const url  = document.getElementById('setupScriptUrl').value.trim();
   const key  = document.getElementById('setupApiKey').value.trim();
   const pc   = document.getElementById('setupPasscode').value.trim();
@@ -1236,7 +1297,7 @@ function completeSetup() {
   if (pc && pc.length < 4) { document.getElementById('setupError').textContent = 'Passcode must be at least 4 characters'; return; }
   LS.set('scriptUrl', url);
   LS.set('apiKey', key);
-  if (pc) LS.set('passcode', simpleHash(pc)); // Only override if user typed a new one
+  if (pc) LS.set('passcode', await hashPasscode(pc)); // Only override if user typed a new one
   if (name) { STATE.prefs.userName = name; }
   CONFIG.scriptUrl = url;
   CONFIG.apiKey    = key;
@@ -1342,16 +1403,27 @@ function logout() {
 }
 
 // ─── IDLE TIMER ──────────────────────────────────────────────────
+let _idleResetFn = null;
 function startIdleTimer() {
   clearIdleTimer();
   const mins = STATE.prefs.idleTimeout;
   if (!mins) return;
   const events = ['mousemove','keydown','click','touchstart'];
-  const reset = () => { clearIdleTimer(); STATE.idleTimer = setTimeout(() => { if(STATE.isLoggedIn) logout(); }, mins*60000); };
-  events.forEach(e => document.addEventListener(e, reset, { passive:true }));
-  reset();
+  // FIX: Store the reset function reference so we can properly remove it later
+  _idleResetFn = () => {
+    if (STATE.idleTimer) clearTimeout(STATE.idleTimer);
+    STATE.idleTimer = setTimeout(() => { if(STATE.isLoggedIn) logout(); }, mins*60000);
+  };
+  events.forEach(e => document.addEventListener(e, _idleResetFn, { passive:true }));
+  _idleResetFn();
 }
-function clearIdleTimer() { if (STATE.idleTimer) clearTimeout(STATE.idleTimer); }
+function clearIdleTimer() {
+  if (STATE.idleTimer) clearTimeout(STATE.idleTimer);
+  if (_idleResetFn) {
+    ['mousemove','keydown','click','touchstart'].forEach(e => document.removeEventListener(e, _idleResetFn));
+    _idleResetFn = null;
+  }
+}
 
 // ─── CLOCK ───────────────────────────────────────────────────────
 function startClock() {
@@ -1414,7 +1486,10 @@ function nav(page) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('mobile-open');
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('menuToggle');
+  const isOpen = sidebar.classList.toggle('mobile-open');
+  if (btn) btn.setAttribute('aria-expanded', isOpen);
 }
 
 // ─── FETCH WITH TIMEOUT ───────────────────────────────────────────
@@ -1686,7 +1761,12 @@ function renderModuleSummary(mod) {
       <div class="flex gap-3" style="flex-wrap:wrap">
         <span class="badge badge-default">${entries.length} entries</span>
         <span class="badge badge-default">${groups.length} groups</span>
-        ${entries.length ? `<span class="badge badge-blue">Last updated: ${timeAgo(entries[0]?.updatedAt||entries[0]?.createdAt||Date.now())}</span>` : ''}
+      ${entries.length ? `<span class="badge badge-blue">Last updated: ${timeAgo(
+        entries.reduce((latest, e) => {
+          const d = e.updatedAt || e.createdAt || 0;
+          return d > latest ? d : latest;
+        }, 0)
+      )}</span>` : ''}
       </div>${extra}
     </div>
   </div>`;
@@ -1714,9 +1794,14 @@ function filterEntries(mod) {
   const dt  = dateEl?.value || '';
   const tp  = typeEl?.value || '';
   const st  = statusEl?.value || '';
+  const SEARCH_FIELDS = ['title','fullName','description','condition','siteName','eventName','institution',
+    'company','position','notes','tags','type','category','username','email','degree','doctor','mood'];
   const filtered = entries.filter(e => {
-    const str = Object.values(e).join(' ').toLowerCase();
-    if (q && !str.includes(q)) return false;
+    // FIX: search only meaningful text fields, not IDs/timestamps for better perf and relevance
+    if (q) {
+      const searchable = SEARCH_FIELDS.map(f => e[f]||'').join(' ').toLowerCase();
+      if (!searchable.includes(q)) return false;
+    }
     if (grp && e.groupId !== grp) return false;
     if (tp && e.type !== tp) return false;
     if (st && e.status !== st) return false;
@@ -2024,7 +2109,10 @@ async function saveEntry() {
     if (!f.value.trim()) { f.focus(); toast('Please fill all required fields', 'error'); return; }
   }
   // Sanitize amounts
-  if (form.amount && parseFloat(form.amount) < 0) { toast('Amount cannot be negative', 'error'); return; }
+  if (form.amount !== undefined && form.amount !== '') {
+    const amt = parseFloat(form.amount);
+    if (isNaN(amt) || amt < 0) { toast('Amount must be a positive number', 'error'); return; }
+  }
   // Build record
   const now = new Date().toISOString();
   const isEdit = !!STATE.currentEntryId;
@@ -2139,9 +2227,11 @@ function revealPassword(id) {
   document.getElementById('revealError').textContent = '';
   openModal('revealModal');
 }
-function confirmReveal() {
+async function confirmReveal() {
   const pc = document.getElementById('revealPasscode').value;
-  if (simpleHash(pc) !== LS.get('passcode')) {
+  const stored = LS.get('passcode');
+  const hash = stored?.startsWith('pvs_') ? await hashPasscode(pc) : legacyHash(pc);
+  if (hash !== stored) {
     document.getElementById('revealError').textContent = 'Incorrect passcode';
     return;
   }
@@ -2150,8 +2240,41 @@ function confirmReveal() {
   closeModal('revealModal');
   try {
     const decoded = decodeURIComponent(escape(atob(entry.password)));
-    toast('Password: ' + decoded, 'info');
-  } catch { toast('Password: ' + entry.password, 'info'); }
+    // FIX: Show in a modal instead of a toast (sensitive data in toast is a security risk)
+    showPasswordRevealResult(decoded);
+  } catch { showPasswordRevealResult(entry.password); }
+}
+
+// FIX: Revealed passwords are shown in a secure modal, not a toast notification.
+// Toasts are visible to nearby observers and often persist in logs.
+function showPasswordRevealResult(pw) {
+  const entry = (STATE.data.passwords||[]).find(e=>e.id===STATE.currentRevealId);
+  const name  = entry ? escHtml(entry.siteName||'Password') : 'Password';
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop open';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <div class="modal-title">🔓 Revealed: ${name}</div>
+        <button class="close-btn" onclick="this.closest('.modal-backdrop').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center">
+        <div style="font-family:var(--mono);font-size:1.1rem;font-weight:600;color:var(--accent);
+             background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--radius-sm);
+             padding:1rem;letter-spacing:.05em;word-break:break-all;margin-bottom:1rem">
+          ${escHtml(pw)}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${pw.replace(/'/g,"\\'")}').then(()=>toast('Copied!','success'))">📋 Copy to Clipboard</button>
+        <p style="font-size:.75rem;color:var(--t3);margin-top:1rem">This dialog will close automatically in 30 seconds.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="this.closest('.modal-backdrop').remove()">Done</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // Auto-close after 30s for security
+  setTimeout(() => modal.remove(), 30000);
 }
 
 // ─── ACTIVITY LOG ─────────────────────────────────────────────────
@@ -2274,7 +2397,13 @@ function renderNotifications() {
   updateNotifBadge();
 }
 
-function clearNotifications() { document.getElementById('notifList').innerHTML = '<div class="empty-state"><div class="empty-icon">🔕</div><div class="empty-text">All clear</div></div>'; }
+function clearNotifications() {
+  // FIX: Dismissed state stored so notifications don't reappear after re-render
+  LS.set('dismissedNotifs', Date.now());
+  const el = document.getElementById('notifList');
+  if (el) el.innerHTML = '<div class="empty-state"><div class="empty-icon">🔕</div><div class="empty-text">All clear</div></div>';
+  updateNotifBadge();
+}
 
 // ─── ALARMS ──────────────────────────────────────────────────────
 function checkAlarms() {
@@ -2392,24 +2521,38 @@ function exportCSV(mod) {
   const rows = (STATE.data[mod]||[]).map(r => { const c={...r}; if(c.password) c.password='[HIDDEN]'; return c; });
   if (!rows.length) { toast('No data to export','info'); return; }
   const keys = Object.keys(rows[0]);
-  const csv = [keys.join(','), ...rows.map(r=>keys.map(k=>'"'+String(r[k]||'').replace(/"/g,'""')+'"').join(','))].join('\n');
-  dlBlob(new Blob([csv],{type:'text/csv'}),`PersonaVault_${mod}_${ts()}.csv`);
+  // FIX: escape newlines inside cell values in addition to quotes
+  const escCell = v => '"' + String(v||'').replace(/"/g,'""').replace(/\r?\n/g,' ') + '"';
+  const csv = [keys.map(escCell).join(','), ...rows.map(r=>keys.map(k=>escCell(r[k]||'')).join(','))].join('\n');
+  dlBlob(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}),`PersonaVault_${mod}_${ts()}.csv`);
 }
 function exportPDF(mod) {
   const rows = (STATE.data[mod]||[]).map(r=>{ const c={...r}; if(c.password) c.password='[HIDDEN]'; return c; });
   const title = mod==='__all__'?'All Records':(MODULES[mod]?.label||mod);
   const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>body{font-family:sans-serif;padding:2rem;color:#000}h1{margin-bottom:1rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:.4rem .6rem;font-size:.8rem}th{background:#eee;font-weight:600}</style></head><body>`);
-  w.document.write(`<h1>PersonaVault — ${title}</h1><p style="color:#555;font-size:.8rem">Exported ${new Date().toLocaleString()}</p>`);
+  // FIX: guard against popup blocker
+  if (!w) { toast('PDF export blocked — please allow popups for this page', 'warning'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>${escHtml(title)}</title><style>body{font-family:sans-serif;padding:2rem;color:#000}h1{margin-bottom:1rem}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:.4rem .6rem;font-size:.8rem}th{background:#eee;font-weight:600}@media print{button{display:none}}</style></head><body>`);
+  w.document.write(`<h1>PersonaVault — ${escHtml(title)}</h1><p style="color:#555;font-size:.8rem">Exported ${new Date().toLocaleString()}</p>`);
   if (rows.length) {
     const keys = Object.keys(rows[0]);
-    w.document.write(`<table><thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>`);
+    w.document.write(`<table><thead><tr>${keys.map(k=>`<th>${escHtml(k)}</th>`).join('')}</tr></thead><tbody>`);
     rows.forEach(r=>w.document.write(`<tr>${keys.map(k=>`<td>${escHtml(String(r[k]||''))}</td>`).join('')}</tr>`));
     w.document.write('</tbody></table>');
   } else w.document.write('<p>No records found.</p>');
+  w.document.write('<br><button onclick="window.print()">🖨️ Print / Save as PDF</button>');
   w.document.write('</body></html>'); w.document.close(); w.print();
 }
-function dlBlob(blob, name) { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); toast('Export downloaded ✅','success'); }
+function dlBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); // FIX: must be in DOM for Firefox
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000); // FIX: revoke after delay, not immediately
+  toast('Export downloaded ✅','success');
+}
 function ts() { return new Date().toISOString().slice(0,10); }
 
 // ─── IMPORT ──────────────────────────────────────────────────────
@@ -2417,21 +2560,30 @@ function importData() {
   const inp = document.createElement('input');
   inp.type='file'; inp.accept='.json';
   inp.onchange = async e => {
-    const file = e.target.files[0];
-    const text = await file.text();
+    const file = e.target.files?.[0];
+    if (!file) return; // FIX: guard against cancelled picker
+    if (file.size > 5 * 1024 * 1024) { toast('File too large (max 5 MB)', 'error'); return; } // FIX: size guard
+    let text;
+    try { text = await file.text(); } catch { toast('Could not read file', 'error'); return; }
     try {
       const json = JSON.parse(text);
+      // FIX: validate it looks like a PersonaVault export before importing
+      const hasKnownModule = Object.keys(json).some(k => MODULES[k] || k === 'groups');
+      if (!hasKnownModule) { toast('File does not appear to be a valid PersonaVault export', 'error'); return; }
       showConfirm('Import Data?','This will merge imported data with existing records.','📥', async () => {
+        showLoading('Importing data…');
+        let imported = 0, errors = 0;
         for (const [mod, entries] of Object.entries(json)) {
           if (!MODULES[mod] || !Array.isArray(entries)) continue;
           for (const entry of entries) {
-            try { await apiPost(CONFIG.sheets[mod], 'save', entry); } catch {}
+            try { await apiPost(CONFIG.sheets[mod], 'save', entry); imported++; } catch { errors++; }
           }
         }
+        hideLoading();
         await syncAll();
-        toast('Import complete ✅','success');
+        toast(`Import complete — ${imported} saved${errors?', '+errors+' failed':''}`, errors?'warning':'success');
       });
-    } catch { toast('Invalid JSON file','error'); }
+    } catch { toast('Invalid JSON file', 'error'); }
   };
   inp.click();
 }
@@ -2444,7 +2596,8 @@ function onGlobalSearch(q) {
 }
 function runGlobalSearch(q) {
   const drop = document.getElementById('searchDrop');
-  if (!q.trim()) { drop.classList.remove('open'); return; }
+  const srch = document.getElementById('globalSearch');
+  if (!q.trim()) { drop.classList.remove('open'); srch.setAttribute('aria-expanded','false'); return; }
   const ql = q.toLowerCase();
   const results = [];
   Object.entries(STATE.data).forEach(([mod, entries]) => {
@@ -2453,15 +2606,27 @@ function runGlobalSearch(q) {
       if (str.includes(ql)) results.push({ mod, e });
     });
   });
-  if (!results.length) { drop.innerHTML='<div class="search-result-item"><div class="sr-title" style="color:var(--t3)">No results found</div></div>'; drop.classList.add('open'); return; }
-  drop.innerHTML = results.slice(0,8).map(({mod,e}) => `<div class="search-result-item" onclick="nav('${mod}');closeDrop()">
-    <div class="sr-module">${MODULES[mod]?.icon} ${MODULES[mod]?.label}</div>
-    <div class="sr-title">${highlight(escHtml(getEntryTitle(mod,e)),q)}</div>
-  </div>`).join('');
+  if (!results.length) {
+    drop.innerHTML='<div class="search-result-item" role="option"><div class="sr-title" style="color:var(--t3)">No results found</div></div>';
+    drop.classList.add('open'); srch.setAttribute('aria-expanded','true'); return;
+  }
+  drop.innerHTML = results.slice(0,8).map(({mod,e}) =>
+    `<div class="search-result-item" role="option" onclick="nav('${mod}');closeDrop()">
+      <div class="sr-module">${MODULES[mod]?.icon} ${MODULES[mod]?.label}</div>
+      <div class="sr-title">${highlight(escHtml(getEntryTitle(mod,e)),q)}</div>
+    </div>`).join('');
   drop.classList.add('open');
+  srch.setAttribute('aria-expanded','true');
 }
-function closeDrop() { document.getElementById('searchDrop').classList.remove('open'); }
-function highlight(text, q) { return text.replace(new RegExp(escRegex(q),'gi'), m => `<mark style="background:var(--accentdim);color:var(--accent);border-radius:2px">${m}</mark>`); }
+function closeDrop() {
+  document.getElementById('searchDrop').classList.remove('open');
+  document.getElementById('globalSearch').setAttribute('aria-expanded','false');
+}
+function highlight(text, q) {
+  // FIX: escape the query for use in regex safely; text is already HTML-escaped
+  const safe = escRegex(escHtml(q));
+  return text.replace(new RegExp(safe,'gi'), m => `<mark style="background:var(--accentdim);color:var(--accent);border-radius:2px">${m}</mark>`);
+}
 function escRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
 
 // ─── QUICK ADD ────────────────────────────────────────────────────
@@ -2486,7 +2651,7 @@ function loadSettingsUI() {
   document.getElementById('totalRecordsDisplay').textContent = total;
 }
 
-async function testConnection() {
+async function testConnection(btn) {
   const url = document.getElementById('settingsUrl').value.trim();
   const key = document.getElementById('settingsApiKey').value.trim();
   if (!url || !key) { toast('Enter URL and API key first', 'warning'); return; }
@@ -2497,7 +2662,6 @@ async function testConnection() {
   CONFIG.apiKey    = key;
 
   // Visual feedback while testing
-  const btn = event?.target;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Testing…'; }
 
   try {
@@ -2527,14 +2691,17 @@ function saveConnectionSettings() {
   if (CONFIG.scriptUrl && CONFIG.apiKey) syncAll();
 }
 
-function changePasscode() {
+async function changePasscode() {
   const cur = document.getElementById('currentPasscode').value;
   const nw  = document.getElementById('newPasscode').value;
   const cnf = document.getElementById('confirmPasscode').value;
-  if (simpleHash(cur) !== LS.get('passcode')) { toast('Current passcode is incorrect','error'); return; }
+  const stored = LS.get('passcode');
+  // Support both legacy and new hash during comparison
+  const curHash = stored?.startsWith('pvs_') ? await hashPasscode(cur) : legacyHash(cur);
+  if (curHash !== stored) { toast('Current passcode is incorrect','error'); return; }
   if (nw.length < 4) { toast('New passcode must be at least 4 characters','error'); return; }
   if (nw !== cnf) { toast('Passcodes do not match','error'); return; }
-  LS.set('passcode', simpleHash(nw));
+  LS.set('passcode', await hashPasscode(nw));
   document.getElementById('currentPasscode').value='';
   document.getElementById('newPasscode').value='';
   document.getElementById('confirmPasscode').value='';
@@ -2582,14 +2749,30 @@ function toggleCompact(on) {
 }
 
 // ─── MODAL HELPERS ───────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) {
+  const backdrop = document.getElementById(id);
+  backdrop.classList.add('open');
+  // FIX: click on the backdrop (not the modal itself) closes it
+  backdrop._closeHandler = e => { if (e.target === backdrop) closeModal(id); };
+  backdrop.addEventListener('click', backdrop._closeHandler);
+}
+function closeModal(id) {
+  const backdrop = document.getElementById(id);
+  backdrop.classList.remove('open');
+  if (backdrop._closeHandler) {
+    backdrop.removeEventListener('click', backdrop._closeHandler);
+    backdrop._closeHandler = null;
+  }
+}
 function showConfirm(title, msg, icon, cb) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmMsg').textContent = msg;
   document.getElementById('confirmIcon').textContent = icon;
   const btn = document.getElementById('confirmOkBtn');
-  btn.onclick = () => { closeModal('confirmModal'); cb(); };
+  // FIX: clone to remove all existing onclick handlers before assigning new one
+  const fresh = btn.cloneNode(true);
+  btn.parentNode.replaceChild(fresh, btn);
+  fresh.onclick = () => { closeModal('confirmModal'); cb(); };
   openModal('confirmModal');
 }
 document.addEventListener('keydown', e => {
@@ -2598,12 +2781,12 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── HELP ────────────────────────────────────────────────────────
-function showHelp(section) {
+function showHelp(section, el) {
   document.querySelectorAll('.help-section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.help-nav-item').forEach(i=>i.classList.remove('active'));
-  const el = document.getElementById('help-'+section);
+  const target = document.getElementById('help-'+section);
+  if (target) target.classList.add('active');
   if (el) el.classList.add('active');
-  event?.target?.classList.add('active');
 }
 
 // ─── KEYBOARD SHORTCUTS ──────────────────────────────────────────
@@ -2640,15 +2823,18 @@ function timeAgo(d) {
 }
 function calcAge(bd) {
   if (!bd) return '';
-  const b = new Date(bd); const n = new Date();
+  const b = new Date(bd);
+  if (isNaN(b.getTime())) return ''; // FIX: guard invalid date string
+  const n = new Date();
   let age = n.getFullYear()-b.getFullYear();
   if (n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) age--;
-  return age;
+  return age < 0 ? '' : age; // FIX: don't show negative age for future dates
 }
 function calcTenure(start, end) {
   if (!start) return '';
   const s = new Date(start); const e = end ? new Date(end) : new Date();
-  const months = (e.getFullYear()-s.getFullYear())*12 + (e.getMonth()-s.getMonth());
+  if (isNaN(s.getTime())) return '';  // FIX: guard invalid dates
+  const months = Math.max(0, (e.getFullYear()-s.getFullYear())*12 + (e.getMonth()-s.getMonth()));
   const yrs = Math.floor(months/12); const mos = months%12;
   return (yrs>0?yrs+' yr':'') + (mos>0?(yrs>0?' ':'')+ mos+' mo':'') || '< 1 mo';
 }
@@ -2658,7 +2844,16 @@ function toast(msg, type='info') {
   const icons = {success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
-  el.innerHTML = `<span class="toast-icon">${icons[type]||'ℹ️'}</span><span>${escHtml(msg)}</span>`;
+  // FIX: use DOM construction instead of innerHTML to avoid XSS from msg
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'toast-icon';
+  iconSpan.textContent = icons[type]||'ℹ️';
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = msg;
+  el.appendChild(iconSpan);
+  el.appendChild(msgSpan);
+  // FIX: also announce to screen readers
+  document.getElementById('srAnnounce').textContent = msg;
   document.getElementById('toastContainer').prepend(el);
   setTimeout(() => { el.classList.add('removing'); setTimeout(()=>el.remove(),300); }, 3500);
 }
