@@ -382,17 +382,6 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 /* ARIA live region for screen readers */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-/* ═══════════════════ ALARM MODAL ═══════════════════ */
-#alarmModal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s}
-#alarmModal.open{opacity:1;pointer-events:all}
-.alarm-box{background:var(--bg2);border:2px solid var(--accent);border-radius:20px;padding:2rem 1.8rem;width:360px;max-width:94vw;text-align:center;box-shadow:0 0 40px rgba(245,166,35,.35),var(--shadow);animation:alarmPulse 1s ease-in-out infinite alternate}
-@keyframes alarmPulse{from{box-shadow:0 0 20px rgba(245,166,35,.2),var(--shadow)}to{box-shadow:0 0 50px rgba(245,166,35,.55),var(--shadow)}}
-.alarm-icon{font-size:3rem;margin-bottom:.5rem;animation:alarmRing .5s ease-in-out infinite alternate}
-@keyframes alarmRing{from{transform:rotate(-12deg)}to{transform:rotate(12deg)}}
-.alarm-title{font-size:1.3rem;font-weight:700;color:var(--accent);margin-bottom:.3rem}
-.alarm-label{font-size:.88rem;color:var(--t2);margin-bottom:1.5rem;line-height:1.5}
-.alarm-actions{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
-
 /* ═══════════════════ PRINT ═══════════════════ */
 @media print{
   #header,#sidebar,#toastContainer,.btn,.icon-btn,.filter-bar,.actions-td,.entry-actions{display:none!important}
@@ -401,6 +390,20 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
   body{background:#fff;color:#000}
   .group-body{display:block!important}
 }
+
+/* ═══════════════════ WAIT CURSOR ═══════════════════ */
+body.gs-loading, body.gs-loading * { cursor: wait !important; }
+
+/* ═══════════════════ FINANCIAL GROUP TOTALS ═══════════════════ */
+.fin-group-totals{display:flex;flex-wrap:wrap;gap:.45rem;padding:.55rem 1.1rem;background:var(--bg1);border-top:1px solid var(--bdr);font-size:.75rem}
+.fin-group-totals .fgt-item{display:flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:50px;font-weight:500;opacity:.85}
+.fgt-income{background:rgba(16,185,129,.1);color:var(--green)}
+.fgt-expense{background:rgba(239,68,68,.1);color:var(--red)}
+.fgt-net-pos{background:rgba(16,185,129,.1);color:var(--green)}
+.fgt-net-neg{background:rgba(239,68,68,.1);color:var(--red)}
+.fgt-savings{background:rgba(59,130,246,.1);color:var(--blue)}
+.fgt-investment{background:rgba(139,92,246,.1);color:var(--purple)}
+.fgt-loan{background:rgba(249,115,22,.1);color:var(--orange)}
 
 /* ═══════════════════ OFFLINE BANNER ═══════════════════ */
 #offlineBanner{display:none;position:fixed;top:var(--header);left:0;right:0;z-index:190;background:rgba(239,68,68,.9);color:#fff;font-size:.8rem;font-weight:600;text-align:center;padding:.4rem;backdrop-filter:blur(4px)}
@@ -829,11 +832,9 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
         <div class="settings-row-info"><div class="settings-row-title">Compact Mode</div><div class="settings-row-desc">Reduce padding and spacing</div></div>
         <label class="toggle-wrap"><input type="checkbox" id="compactModeToggle" onchange="toggleCompact(this.checked)"><span class="toggle-slider"></span></label>
       </div>
-      <div class="settings-row">
-        <div class="settings-row-info"><div class="settings-row-title">Alarm Sound</div><div class="settings-row-desc">Play audio when a schedule alarm fires</div></div>
-        <label class="toggle-wrap"><input type="checkbox" id="alarmSoundToggle" onchange="toggleAlarmSound(this.checked)"><span class="toggle-slider"></span></label>
-      </div>
     </div>
+    <div class="settings-section">
+      <div class="settings-title">🌐 Preferences</div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Default Currency</label>
           <select id="settingsCurrency" class="form-control">
@@ -950,19 +951,6 @@ canvas.chart-canvas{width:100%!important;height:100%!important}
 </div>
 
 </main><!-- end #main -->
-
-<!-- ═══════════════════════ ALARM MODAL ═══════════════════════ -->
-<div id="alarmModal" role="alertdialog" aria-modal="true" aria-labelledby="alarmModalTitle">
-  <div class="alarm-box">
-    <div class="alarm-icon" id="alarmModalIcon">⏰</div>
-    <div class="alarm-title" id="alarmModalTitle">Alarm!</div>
-    <div class="alarm-label" id="alarmModalLabel"></div>
-    <div class="alarm-actions">
-      <button class="btn btn-secondary" onclick="snoozeAlarm()">💤 Snooze 5 min</button>
-      <button class="btn btn-primary" onclick="dismissAlarm()">✓ Dismiss</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══════════════════════ MODALS ═══════════════════════ -->
 
@@ -1422,10 +1410,6 @@ function logout() {
   STATE.activity = [];
   STATE.alarmTimers.forEach(t => clearTimeout(t));
   STATE.alarmTimers = [];
-  stopAlarmSound();
-  if (typeof _snoozeTimer !== 'undefined' && _snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
-  if (typeof _alarmPollInterval !== 'undefined' && _alarmPollInterval) { clearInterval(_alarmPollInterval); _alarmPollInterval = null; }
-  document.getElementById('alarmModal').classList.remove('open');
   clearIdleTimer();
   sessionStorage.clear();
   document.getElementById('loginScreen').style.display = 'flex';
@@ -1591,6 +1575,7 @@ async function initData() {
     toast('⚠️ Configure connection in Settings first', 'warning'); return;
   }
   setSync('syncing');
+  gsWait();
   try {
     await loadAllData();
     STATE.lastSync = new Date();
@@ -1602,7 +1587,7 @@ async function initData() {
     setSync('offline');
     toast('Sync failed: ' + e.message, 'error');
     loadFromCache();
-  }
+  } finally { gsReady(); }
 }
 
 async function loadAllData() {
@@ -1648,6 +1633,7 @@ async function syncAll() {
   const btn = document.getElementById('syncBtnIcon');
   btn.textContent = '⏳';
   setSync('syncing');
+  gsWait();
   try {
     await loadAllData();
     STATE.lastSync = new Date();
@@ -1659,7 +1645,7 @@ async function syncAll() {
   } catch(e) {
     setSync('offline');
     toast('Sync failed: ' + e.message, 'error');
-  } finally { btn.textContent = '🔄'; }
+  } finally { btn.textContent = '🔄'; gsReady(); }
 }
 
 function setSync(s) {
@@ -1889,6 +1875,27 @@ function renderEntries(mod, entries) {
 
 function renderGroupAccordion(mod, group, entries) {
   const isUngrouped = group.id === '__ungrouped__';
+  // ── Financial group totals ─────────────────────────────────────
+  let finTotalsHtml = '';
+  if (mod === 'financial') {
+    const cur = STATE.prefs.currency || 'PHP';
+    const sum = (type) => entries.filter(e=>e.type===type).reduce((s,e)=>s+parseFloat(e.amount||0),0);
+    const income     = sum('Income');
+    const expense    = sum('Expense');
+    const savings    = sum('Savings');
+    const investment = sum('Investment');
+    const loan       = sum('Loan');
+    const net        = income - expense;
+    const items = [];
+    if (income     > 0) items.push(`<span class="fgt-item fgt-income">↑ Income: ${cur} ${fmt(income)}</span>`);
+    if (expense    > 0) items.push(`<span class="fgt-item fgt-expense">↓ Expense: ${cur} ${fmt(expense)}</span>`);
+    if (income > 0 || expense > 0)
+      items.push(`<span class="fgt-item ${net>=0?'fgt-net-pos':'fgt-net-neg'}">${net>=0?'↗':'↘'} Net: ${cur} ${fmt(net)}</span>`);
+    if (savings    > 0) items.push(`<span class="fgt-item fgt-savings">🏦 Savings: ${cur} ${fmt(savings)}</span>`);
+    if (investment > 0) items.push(`<span class="fgt-item fgt-investment">📈 Investment: ${cur} ${fmt(investment)}</span>`);
+    if (loan       > 0) items.push(`<span class="fgt-item fgt-loan">💳 Loan: ${cur} ${fmt(loan)}</span>`);
+    if (items.length) finTotalsHtml = `<div class="fin-group-totals">${items.join('')}</div>`;
+  }
   return `<div class="group-accordion" id="grp-${group.id}">
     <div class="group-header" onclick="toggleGroup('grp-${group.id}')">
       <span class="group-chevron">▶</span>
@@ -1900,6 +1907,7 @@ function renderGroupAccordion(mod, group, entries) {
         <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();confirmDeleteGroup('${group.id}','${mod}')">🗑</button>
       </div>` : ''}
     </div>
+    ${finTotalsHtml}
     <div class="group-body">${entries.map(e => renderEntryCard(mod, e)).join('')}</div>
   </div>`;
 }
@@ -1990,7 +1998,31 @@ function showEntryModal(mod, id=null) {
   document.getElementById('entryModalTitle').textContent = (id?'Edit':'Add') + ' — ' + MODULES[mod].label;
   document.getElementById('entryModalBody').innerHTML = buildEntryForm(mod, entry);
   if (entry) populateEntryForm(mod, entry);
+  if (mod === 'financial') updateFinGroupNet();
   openModal('entryModal');
+}
+
+// ─── FINANCIAL GROUP NET BADGE ────────────────────────────────────
+function updateFinGroupNet() {
+  const badge = document.getElementById('finGroupNetBadge');
+  if (!badge) return;
+  const sel = document.getElementById('finModalGroupSel');
+  const gid = sel ? sel.value : '';
+  if (!gid) { badge.style.display = 'none'; return; }
+  const cur = STATE.prefs.currency || 'PHP';
+  const entries = (STATE.data.financial || []).filter(e => e.groupId === gid);
+  // Exclude the entry currently being edited so its own amount isn't double-counted
+  const editId = STATE.currentEntryId;
+  const relevant = editId ? entries.filter(e => e.id !== editId) : entries;
+  const income  = relevant.filter(e => e.type === 'Income').reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const expense = relevant.filter(e => e.type === 'Expense').reduce((s,e) => s + parseFloat(e.amount||0), 0);
+  const net = income - expense;
+  const pos = net >= 0;
+  badge.textContent = (pos ? '↗ Net: +' : '↘ Net: ') + cur + ' ' + fmt(net);
+  badge.style.display = 'inline-flex';
+  badge.style.background = pos ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)';
+  badge.style.color = pos ? 'var(--green)' : 'var(--red)';
+  badge.style.border = pos ? '1px solid rgba(16,185,129,.25)' : '1px solid rgba(239,68,68,.25)';
 }
 
 function buildEntryForm(mod, entry) {
@@ -2057,10 +2089,14 @@ function buildEntryForm(mod, entry) {
       <div class="form-group"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
       ${tagsRow}${pinRow}`,
 
-    financial: `${gSel}
+    financial: `<div class="form-group"><label class="form-label">Group</label>
+    <select name="groupId" id="finModalGroupSel" class="form-control" onchange="updateFinGroupNet()">
+      <option value="">No Group</option>
+      ${groups.map(g=>`<option value="${escAttr(g.id)}">${escHtml((g.icon||'📁')+' '+g.name)}</option>`).join('')}
+    </select></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Type<span class="required">*</span></label><select name="type" class="form-control"><option>Income</option><option>Expense</option><option>Savings</option><option>Investment</option><option>Loan</option><option>Budget</option></select></div>
       <div class="form-group"><label class="form-label">Date</label><input type="date" name="date" class="form-control"></div></div>
-      <div class="form-row"><div class="form-group"><label class="form-label">Amount<span class="required">*</span></label><input type="number" name="amount" class="form-control" step="0.01" min="0" required></div>
+      <div class="form-row"><div class="form-group"><label class="form-label" style="display:flex;align-items:center;gap:.5rem">Amount<span class="required">*</span><span id="finGroupNetBadge" style="display:none;font-size:.72rem;font-weight:500;padding:.15rem .55rem;border-radius:50px;margin-left:.2rem"></span></label><input type="number" name="amount" class="form-control" step="0.01" min="0" required></div>
       <div class="form-group"><label class="form-label">Currency</label><select name="currency" class="form-control"><option>PHP</option><option>USD</option><option>EUR</option><option>GBP</option></select></div></div>
       <div class="form-row"><div class="form-group"><label class="form-label">Category</label><input type="text" name="category" class="form-control" placeholder="e.g. Food, Salary, Utilities"></div>
       <div class="form-group"><label class="form-label">Linked Account</label><input type="text" name="account" class="form-control" placeholder="e.g. BDO Savings"></div></div>
@@ -2185,6 +2221,7 @@ async function saveEntry() {
   }
   const btn = document.getElementById('entryModalSave');
   btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Saving…';
+  gsWait();
   try {
     await apiPost(CONFIG.sheets[mod], 'save', record);
     // Update local state
@@ -2197,12 +2234,12 @@ async function saveEntry() {
     closeModal('entryModal');
     renderModulePage(mod);
     renderDashboard();
-    if (mod === 'schedules') checkAlarms();
     toast(isEdit?'Entry updated ✅':'Entry added ✅', 'success');
   } catch(e) {
     toast('Save failed: '+e.message, 'error');
   } finally {
     btn.disabled=false; btn.innerHTML='💾 Save Entry';
+    gsReady();
   }
 }
 
@@ -2229,6 +2266,7 @@ async function saveGroup() {
   const id = editId || 'grp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const group = { id, module: mod, name, icon, desc, createdAt: editId ? undefined : now, updatedAt: now };
   try {
+    gsWait();
     await apiPost(CONFIG.sheets.groups, 'save', group);
     if (!STATE.groups[mod]) STATE.groups[mod] = [];
     const idx = STATE.groups[mod].findIndex(g=>g.id===id);
@@ -2237,17 +2275,18 @@ async function saveGroup() {
     closeModal('groupModal');
     renderModulePage(mod);
     toast('Group saved ✅', 'success');
-  } catch(e) { toast('Failed: '+e.message, 'error'); }
+  } catch(e) { toast('Failed: '+e.message, 'error'); } finally { gsReady(); }
 }
 
 function confirmDeleteGroup(id, mod) {
   showConfirm('Delete Group?', 'This will not delete entries inside, but they will become ungrouped.', '🗑️', async () => {
     try {
+      gsWait();
       await apiDelete(CONFIG.sheets.groups, id);
       STATE.groups[mod] = (STATE.groups[mod]||[]).filter(g=>g.id!==id);
       renderModulePage(mod);
       toast('Group deleted', 'info');
-    } catch(e) { toast('Failed: '+e.message, 'error'); }
+    } catch(e) { toast('Failed: '+e.message, 'error'); } finally { gsReady(); }
   });
 }
 
@@ -2257,13 +2296,14 @@ function confirmDeleteEntry(mod, id) {
   const title = entry ? getEntryTitle(mod, entry) : 'this entry';
   showConfirm('Delete Entry?', `"${title}" will be permanently removed.`, '⚠️', async () => {
     try {
+      gsWait();
       await apiDelete(CONFIG.sheets[mod], id);
       STATE.data[mod] = (STATE.data[mod]||[]).filter(e=>e.id!==id);
       await logActivity(mod, 'delete', title);
       renderModulePage(mod);
       renderDashboard();
       toast('Entry deleted', 'info');
-    } catch(e) { toast('Failed: '+e.message, 'error'); }
+    } catch(e) { toast('Failed: '+e.message, 'error'); } finally { gsReady(); }
   });
 }
 
@@ -2273,7 +2313,7 @@ async function togglePin(mod, id) {
   if (!entry) return;
   entry.pinned = entry.pinned==='true' ? 'false' : 'true';
   entry.updatedAt = new Date().toISOString();
-  try { await apiPost(CONFIG.sheets[mod], 'save', entry); renderModulePage(mod); } catch{}
+  try { gsWait(); await apiPost(CONFIG.sheets[mod], 'save', entry); renderModulePage(mod); } catch{} finally { gsReady(); }
 }
 
 // ─── PASSWORD REVEAL ──────────────────────────────────────────────
@@ -2545,210 +2585,31 @@ function clearNotifications() {
 }
 
 // ─── ALARMS ──────────────────────────────────────────────────────
-
-// Alarm state
-let _alarmAudioCtx = null;
-let _alarmSoundInterval = null;
-let _alarmCurrentEntry = null;
-let _snoozeTimer = null;
-// ─── ALARM POLL INTERVAL (ms) ────────────────────────────────────
-// Fetches fresh schedule rows from Google Sheets every 60 seconds.
-// Lowering this value increases real-time accuracy at the cost of
-// more API calls against your Apps Script quota.
-const ALARM_POLL_MS = 60000;
-
-let _alarmPollInterval = null; // repeating GSheets poll
-let _firedAlarmIds = new Set(); // de-dupe: track IDs fired this session
-
-function getAudioCtx() {
-  if (!_alarmAudioCtx || _alarmAudioCtx.state === 'closed') {
-    _alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return _alarmAudioCtx;
-}
-
-// Play a single alarm beep pattern (3 short tones)
-function playAlarmBeep() {
-  try {
-    const ctx = getAudioCtx();
-    if (ctx.state === 'suspended') ctx.resume();
-    const tones = [880, 1100, 880]; // Hz — A5, C#6, A5
-    tones.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      const start = ctx.currentTime + i * 0.22;
-      const end   = start + 0.18;
-      gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(0.55, start + 0.02);
-      gain.gain.linearRampToValueAtTime(0, end);
-      osc.start(start);
-      osc.stop(end + 0.02);
-    });
-  } catch(e) { /* AudioContext unavailable — silent fail */ }
-}
-
-function startAlarmSound() {
-  if (_alarmSoundInterval) return;
-  playAlarmBeep();
-  _alarmSoundInterval = setInterval(playAlarmBeep, 1800);
-}
-
-function stopAlarmSound() {
-  if (_alarmSoundInterval) { clearInterval(_alarmSoundInterval); _alarmSoundInterval = null; }
-}
-
-// ─── REAL-TIME GOOGLE SHEETS ALARM CHECKER ───────────────────────
-// Each poll: fetches the schedules sheet directly, evaluates every
-// Active row, and fires triggerAlarm() for any whose eventDate falls
-// within the current ±30-second window. setTimeout is also set for
-// alarms due within the next 7 days so they fire precisely on time.
-async function fetchAndCheckAlarms() {
-  if (!STATE.isLoggedIn) return;
-
-  // Cancel any pending per-alarm timeouts from the previous poll
+function checkAlarms() {
   STATE.alarmTimers.forEach(t => clearTimeout(t));
   STATE.alarmTimers = [];
-
-  let schedules = [];
-
-  // ── Fetch from Google Sheets ──────────────────────────────────
-  if (CONFIG.scriptUrl && CONFIG.apiKey) {
-    try {
-      const rows = await apiGet(CONFIG.sheets.schedules, 'getAll');
-      if (Array.isArray(rows)) {
-        schedules = rows;
-        // Keep STATE in sync so the UI reflects latest data too
-        STATE.data.schedules = rows.sort(
-          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-        );
-        LS.sesSet('data_schedules', STATE.data.schedules);
-      }
-    } catch (e) {
-      // Network/API error — fall back to whatever is in STATE so we
-      // don't go completely silent when offline
-      schedules = STATE.data.schedules || [];
-      console.warn('Alarm poll failed, using cached data:', e.message);
-    }
-  } else {
-    // Not yet configured — use cached/local data
-    schedules = STATE.data.schedules || [];
-  }
-
   const now = Date.now();
-  const FIRE_WINDOW_MS = 30000; // ±30 s counts as "now"
-
-  schedules
-    .filter(s => s.status === 'Active' && s.eventDate)
-    .forEach(s => {
-      const alarmTime = new Date(s.eventDate).getTime();
-      const diff = alarmTime - now;
-
-      // Fire immediately if within the ±30 s window and not already fired
-      if (Math.abs(diff) <= FIRE_WINDOW_MS) {
-        if (!_firedAlarmIds.has(s.id)) {
-          _firedAlarmIds.add(s.id);
-          triggerAlarm(s);
-        }
-        return;
-      }
-
-      // Schedule a precise setTimeout for alarms due within 7 days
-      if (diff > FIRE_WINDOW_MS && diff < 86400000 * 7) {
-        const t = setTimeout(() => {
-          if (!_firedAlarmIds.has(s.id)) {
-            _firedAlarmIds.add(s.id);
-            triggerAlarm(s);
-          }
-        }, diff);
-        STATE.alarmTimers.push(t);
-      }
-    });
-
-  // Prune fired IDs older than 1 hour to keep the Set small
-  // (we store IDs with their fire timestamp for this purpose)
-  const cutoff = now - 3600000;
-  _firedAlarmIds.forEach(entry => {
-    if (typeof entry === 'string') return; // legacy plain IDs — keep
-    if (entry.t < cutoff) _firedAlarmIds.delete(entry);
+  (STATE.data.schedules||[]).filter(s=>s.status==='Active'&&s.eventDate).forEach(s => {
+    const d = new Date(s.eventDate).getTime();
+    const delay = d - now;
+    if (delay > 0 && delay < 86400000*7) {
+      const t = setTimeout(() => triggerAlarm(s), delay);
+      STATE.alarmTimers.push(t);
+    }
   });
 }
 
-// Start (or restart) the real-time polling loop
-function checkAlarms() {
-  // Stop any existing poll loop
-  if (_alarmPollInterval) { clearInterval(_alarmPollInterval); _alarmPollInterval = null; }
-  STATE.alarmTimers.forEach(t => clearTimeout(t));
-  STATE.alarmTimers = [];
-  _firedAlarmIds.clear();
-
-  // Run once immediately, then repeat on schedule
-  fetchAndCheckAlarms();
-  _alarmPollInterval = setInterval(fetchAndCheckAlarms, ALARM_POLL_MS);
-}
-
 function triggerAlarm(entry) {
-  _alarmCurrentEntry = entry;
-  const alarmType = (entry.alarmType || 'Both').toLowerCase(); // visual | audio | both
-
-  // — Browser Notification —
+  toast('⏰ ALARM: ' + entry.title, 'warning');
   if (STATE.prefs.notifications && 'Notification' in window) {
-    const fireNotif = () => new Notification('⏰ PersonaVault Alarm', {
-      body: entry.title + (entry.notes ? '\n' + entry.notes : ''),
-      icon: ''
-    });
     if (Notification.permission === 'granted') {
-      fireNotif();
+      new Notification('PersonaVault Alarm', { body: entry.title, icon: '' });
     } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(p => { if (p === 'granted') fireNotif(); });
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') new Notification('PersonaVault Alarm', { body: entry.title });
+      });
     }
   }
-
-  // — Sound —
-  const soundEnabled = STATE.prefs.alarmSound !== false; // default on
-  if (soundEnabled && (alarmType === 'audio' || alarmType === 'both')) {
-    startAlarmSound();
-  }
-
-  // — Visual alarm modal —
-  if (alarmType === 'visual' || alarmType === 'both' || alarmType === 'audio') {
-    document.getElementById('alarmModalTitle').textContent = entry.title;
-    document.getElementById('alarmModalLabel').textContent =
-      (entry.notes ? entry.notes + '\n' : '') +
-      'Scheduled: ' + (entry.eventDate ? new Date(entry.eventDate).toLocaleString() : '');
-    document.getElementById('alarmModal').classList.add('open');
-    document.getElementById('srAnnounce').textContent = 'Alarm: ' + entry.title;
-  }
-
-  // Always show toast for quick visibility
-  toast('⏰ ALARM: ' + (entry.title || 'Scheduled alarm'), 'warning');
-}
-
-function dismissAlarm() {
-  stopAlarmSound();
-  document.getElementById('alarmModal').classList.remove('open');
-  _alarmCurrentEntry = null;
-  if (_snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
-}
-
-function snoozeAlarm() {
-  stopAlarmSound();
-  document.getElementById('alarmModal').classList.remove('open');
-  const entry = _alarmCurrentEntry;
-  toast('💤 Alarm snoozed for 5 minutes', 'info');
-  if (_snoozeTimer) clearTimeout(_snoozeTimer);
-  _snoozeTimer = setTimeout(() => {
-    if (STATE.isLoggedIn && entry) triggerAlarm(entry);
-  }, 5 * 60 * 1000);
-}
-
-function toggleAlarmSound(on) {
-  STATE.prefs.alarmSound = on;
-  savePrefsToLS();
-  toast('Alarm sound ' + (on ? 'enabled 🔔' : 'disabled 🔕'), 'info');
 }
 
 // ─── STATISTICS ──────────────────────────────────────────────────
@@ -2970,7 +2831,6 @@ function loadSettingsUI() {
   document.getElementById('settingsTimeout').value = STATE.prefs.idleTimeout;
   document.getElementById('darkModeToggle').checked = document.documentElement.getAttribute('data-theme')==='dark';
   document.getElementById('compactModeToggle').checked = STATE.prefs.compact;
-  document.getElementById('alarmSoundToggle').checked = STATE.prefs.alarmSound !== false;
   document.getElementById('lastSyncDisplay').textContent = STATE.lastSync ? timeAgo(STATE.lastSync) : 'Never';
   const total = Object.values(STATE.data).reduce((s,a)=>s+(a?.length||0),0);
   document.getElementById('totalRecordsDisplay').textContent = total;
@@ -2988,6 +2848,7 @@ async function testConnection(btn) {
 
   // Visual feedback while testing
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Testing…'; }
+  gsWait();
 
   try {
     const ok = await ping();
@@ -3003,6 +2864,7 @@ async function testConnection(btn) {
     toast('Connection failed: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Test Connection'; }
+    gsReady();
   }
 }
 
@@ -3190,6 +3052,11 @@ function toast(msg, type='info') {
 // ─── LOADING OVERLAY ─────────────────────────────────────────────
 function showLoading(msg='Loading…') { document.getElementById('loadingMsg').textContent=msg; document.getElementById('loadingOverlay').classList.add('show'); }
 function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
+
+// ─── WAIT CURSOR (GS operations) ─────────────────────────────────
+let _gsWaitDepth = 0;
+function gsWait() { _gsWaitDepth++; document.body.classList.add('gs-loading'); }
+function gsReady() { _gsWaitDepth = Math.max(0, _gsWaitDepth - 1); if (_gsWaitDepth === 0) document.body.classList.remove('gs-loading'); }
 </script>
 </body>
 </html>
